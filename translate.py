@@ -1,14 +1,17 @@
-import re
-from models import get_model_from_name, ModelException
-import os
-from pathlib import Path
-import subprocess
-import shutil
 import argparse
 import json
-import networkx as nx
+import os
 import random
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
 import matplotlib.pyplot as plt
+import networkx as nx
+
+from models import ModelException, get_model_from_name
+
 
 def prRed(skk): print("\033[91m {}\033[00m" .format(skk))
 def prGreen(skk): print("\033[92m {}\033[00m" .format(skk))
@@ -181,25 +184,28 @@ class RunException(Exception):
 
 def compile(code_dir, verbose=False):
     cwd = os.getcwd()
-    cmd = 'cd {} && RUSTFLAGS="-Awarnings" cargo build'.format(code_dir)
 
-    try:
-        result = subprocess.run(
-                    cmd,
-                    shell=True,
-                    timeout=20,
-                    stderr=subprocess.STDOUT if verbose else subprocess.PIPE,
-                    stdout=None if verbose else subprocess.PIPE,
-                )
-        if result.returncode != 0:
-            compiler_output = result.stderr.decode('utf-8', errors='ignore')
-            raise CompileException(compiler_output)
+    cargo_commands = [
+        'cd {} && RUSTFLAGS="-Awarnings" cargo check'.format(code_dir),
+        'cd {} && RUSTFLAGS="-Awarnings" cargo build --offline'.format(code_dir)
+    ]
 
-    except (subprocess.TimeoutExpired, TimeoutError):
-        raise CompileException("Timeout")
-
-    finally:
-        os.chdir(cwd)
+    for cmd in cargo_commands:
+        try:
+            result = subprocess.run(
+                cmd,
+                shell=True,
+                timeout=20,
+                stderr=subprocess.STDOUT if verbose else subprocess.PIPE,
+                stdout=None if verbose else subprocess.PIPE,
+            )
+            if result.returncode != 0:
+                compiler_output = result.stderr.decode("utf-8", errors="ignore")
+                raise CompileException(compiler_output)
+        except (subprocess.TimeoutExpired, TimeoutError):
+            raise CompileException("{} timed out".format(cmd))
+        finally:
+            os.chdir(cwd)
 
 def cleanup(code_dir):
     cwd = os.getcwd()
